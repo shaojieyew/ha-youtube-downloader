@@ -132,6 +132,31 @@ async def async_download_youtube_audio(hass: HomeAssistant, url: str, target_dir
     if cached_path:
         return cached_path
 
+    # Initial info extraction to determine filename
+    ydl_info_opts = {
+        'quiet': True,
+        'noprogress': True,
+        'nocheckcertificate': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    }
+
+    def _get_info():
+        with yt_dlp.YoutubeDL(ydl_info_opts) as ydl:
+            return ydl.extract_info(url, download=False)
+
+    info = await hass.async_add_executor_job(_get_info)
+    
+    artist = info.get('artist')
+    title = info.get('track') or info.get('title', 'Unknown Title')
+    
+    if artist:
+        filename_base = f"{artist} - {title}"
+    else:
+        filename_base = title
+
+    # Sanitize filename base
+    filename_base = "".join([c for c in filename_base if c.isalnum() or c in (' ', '-', '_', '.')]).rstrip()
+
     ydl_opts = {
         'format': 'bestaudio/best',
         'postprocessors': [{
@@ -139,7 +164,7 @@ async def async_download_youtube_audio(hass: HomeAssistant, url: str, target_dir
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
-        'outtmpl': os.path.join(target_dir, '%(artist)s - %(title)s.%(ext)s'),
+        'outtmpl': os.path.join(target_dir, f'{filename_base}.%(ext)s'),
         'quiet': True,
         'logger': YDLogger(),
         'noprogress': True,
@@ -154,52 +179,55 @@ async def async_download_youtube_audio(hass: HomeAssistant, url: str, target_dir
         }
     }
 
-
     def _download():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            mp3_path = f"{os.path.splitext(filename)[0]}.mp3"
+            # Check if file exists right before download
+            mp3_path = os.path.join(target_dir, f"{filename_base}.mp3")
+            if os.path.exists(mp3_path):
+                _LOGGER.info("Exact MP3 already exists: %s", mp3_path)
+            else:
+                ydl.extract_info(url, download=True)
             
             # Create meta file
             meta_path = get_meta_file_path(target_dir, video_id)
             with open(meta_path, 'w', encoding='utf-8') as f:
-                json.dump({'url': url, 'mp3_path': os.path.abspath(mp3_path), 'title': info.get('title')}, f, indent=2)
+                json.dump({'url': url, 'mp3_path': os.path.abspath(mp3_path), 'title': title}, f, indent=2)
             return mp3_path
 
     return await hass.async_add_executor_job(_download)
 
-async def async_search_and_download(hass: HomeAssistant, query: str, target_dir: str):
-    """Searches and downloads a song."""
-    existing = await hass.async_add_executor_job(find_existing_song, query, target_dir)
-    if existing:
-        return existing
 
+async def async_search_and_download(hass: HomeAssistant, query: str, target_dir: str):
+    """Searches and downloads a song. Always searches YouTube first."""
     ydl_opts = {'quiet': True, 'logger': YDLogger(), 'noprogress': True}
     
     def _search():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            results = ydl.extract_info(f"ytsearch5:{query}", download=False)
+            # We use a broader search to find the best verified song
+            results = ydl.extract_info(f"ytsearch10:{query}", download=False)
             if not results or 'entries' not in results:
                 return None
             
+            best_url = None
             for entry in results['entries']:
                 if not entry: continue
-                # Check cache for each search result
+                
+                # Check precise cache for each search result
                 video_id = entry.get('id')
                 cached = check_meta_cache(target_dir, video_id)
-                if cached: return entry['webpage_url']
-                
-                # Check fuzzy match for search result
-                fuzzy = find_existing_song(entry.get('title', ''), target_dir)
-                if fuzzy: return entry['webpage_url']
-                
-                if verify_is_song(entry):
+                if cached:
+                    _LOGGER.info("Precise cache hit for search result: %s", entry.get('title'))
                     return entry['webpage_url']
+                
+                # If no cache hit, prioritize the first verified song
+                if not best_url and verify_is_song(entry):
+                    best_url = entry['webpage_url']
             
-            return results['entries'][0]['webpage_url'] if results['entries'] else None
+            # Fallback to the very first result if no verified song was found
+            return best_url or (results['entries'][0]['webpage_url'] if results['entries'] else None)
 
     url = await hass.async_add_executor_job(_search)
     if url:
         return await async_download_youtube_audio(hass, url, target_dir)
     return None
+
