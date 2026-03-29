@@ -30,35 +30,19 @@ A powerful Home Assistant integration that allows you to search for any song on 
 | `query` | **Required**. Song name and/or artist. | `Rick Astley Never Gonna Give You Up` |
 | `music_dir` | *Optional*. Local path where music is saved (defaults to `/media`). | `/media` |
 
-## 🧪 Testing and Verification
-
-### 1. Via Home Assistant UI (Recommended)
-1. Go to **Developer Tools** > **Services**.
-2. Search for `Smart Music Downloader: Play Song`.
-3. Switch to **UI mode**, select your speaker, and enter a song query.
-4. Click **Call Service**.
-
-### 2. Via Command Line (API)
-Replace `YOUR_TOKEN` and `YOUR_HA_IP` with your actual details:
-```bash
-curl -X POST \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"entity_id": "media_player.xiaomi_speaker", "query": "Digimon biggest dreamer"}' \
-  http://YOUR_HA_IP:8123/api/services/smart_music_downloader/play_song
+### Automation Example
+```yaml
+alias: Play morning music
+trigger:
+  - platform: time
+    at: "07:00:00"
+action:
+  - service: smart_music_downloader.play_song
+    data:
+      entity_id: media_player.master_bedroom_speaker
+      query: "Lofi hip hop mix"
 ```
 
-### 3. Monitoring Progress
-Since downloads can take 30-60 seconds, you can monitor the progress in the Home Assistant logs:
-1. Go to **Settings** > **System** > **Logs**.
-2. Click **Load Full Logs**.
-3. Filter by `smart_music_downloader`. You will see logs for:
-   - YouTube Search results and verification.
-   - Precise cache hits (skipping downloads).
-   - `yt-dlp` download and conversion status.
-   - Final `media-source://` URI generation.
-
 ## 📂 File Structure
-- Music is saved as: `[Artist - Song].mp3` (or `[Song].mp3` if artist is missing).
-- Metadata Cache: `.tmp/[video_id].ytmeta`
-
+- Music is saved as: `[Artist - Song].mp3`
+- Cache is saved in: `.tmp/[video_id].ytmeta`
