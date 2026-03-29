@@ -52,7 +52,7 @@ def verify_is_song(info):
     duration = info.get('duration', 0)
     
     # 1. Duration check (songs are rarely > 15 mins, unless they are mixes)
-    if duration > 900: # 15 minutes
+    if duration > 420: # 15 minutes
         if 'mix' not in title and 'album' not in title:
             return False
 
