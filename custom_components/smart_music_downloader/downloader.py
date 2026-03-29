@@ -226,8 +226,17 @@ async def async_search_and_download(hass: HomeAssistant, query: str, target_dir:
             # Fallback to the very first result if no verified song was found
             return best_url or (results['entries'][0]['webpage_url'] if results['entries'] else None)
 
-    url = await hass.async_add_executor_job(_search)
-    if url:
-        return await async_download_youtube_audio(hass, url, target_dir)
-    return None
+async def async_get_music_list(hass: HomeAssistant, target_dir: str):
+    """Returns a list of all available MP3 files in the target directory."""
+    def _list():
+        if not os.path.exists(target_dir):
+            return []
+        songs = []
+        for filename in os.listdir(target_dir):
+            if filename.lower().endswith(".mp3"):
+                songs.append(filename)
+        return sorted(songs)
+
+    return await hass.async_add_executor_job(_list)
+
 
