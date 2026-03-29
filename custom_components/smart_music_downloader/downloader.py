@@ -43,16 +43,53 @@ def check_meta_cache(target_dir, video_id):
     return None
 
 def verify_is_song(info):
-    """Verifies if the video is likely a song based on metadata."""
+    """
+    Verifies if the video is likely a song based on metadata.
+    Includes strict blacklisting for dramas, shorts, and long-form content.
+    """
+    title = info.get('title', '').lower()
+    uploader = info.get('uploader', '').lower()
+    duration = info.get('duration', 0)
+    
+    # 1. Duration check (songs are rarely > 15 mins, unless they are mixes)
+    if duration > 900: # 15 minutes
+        if 'mix' not in title and 'album' not in title:
+            return False
+
+    # 2. Blacklist: Keywords that indicate non-music content
+    blacklist = {
+        'drama', 'shortplay', 'episode', 'ep.', 'full movie', 'preview', 
+        'trailer', 'teaser', 'reaction', 'vlog', 'gameplay', 'walkthrough',
+        'tutorial', 'highlights', 'news', 'interview', 'compilation'
+    }
+    if any(word in title for word in blacklist):
+        # Allow if it's an "OST" or "Theme" despite the keyword
+        if 'ost' not in title and 'theme' not in title and 'song' not in title:
+            return False
+
+    # 3. Whitelist: Metadata that strongly indicates music
     if info.get('track') or info.get('artist') or info.get('album'):
         return True
+    
     categories = info.get('categories', [])
     if 'Music' in categories:
         return True
+        
     tags = [t.lower() for t in info.get('tags', [])] if info.get('tags') else []
-    if any(tag in {'music', 'song', 'audio', 'ost'} for tag in tags):
+    music_tags = {'music', 'song', 'audio', 'soundtrack', 'ost', 'lyrics'}
+    if any(tag in music_tags for tag in tags):
         return True
+        
+    if uploader.endswith(' - topic'):
+        return True
+
+    # 4. Keyword Check: Common music indicators in title
+    music_indicators = ['official audio', 'official lyric video', 'official music video', 'mv', 'cover']
+    if any(ind in title for ind in music_indicators):
+        return True
+
     return False
+
 
 def find_existing_song(query: str, download_dir: str):
     """Checks if a similar song already exists in the download_dir."""

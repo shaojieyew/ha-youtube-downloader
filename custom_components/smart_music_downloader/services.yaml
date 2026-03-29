@@ -19,9 +19,11 @@ play_song:
         text:
     music_dir:
       name: Music Directory
-      description: The local directory where music is stored (should be mounted to /media).
+      description: The local directory where music is stored (should be mapped to a writable path in /media).
       required: false
       default: "/media"
       example: "/media"
       selector:
         text:
+
+
