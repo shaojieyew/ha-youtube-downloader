@@ -1,12 +1,11 @@
 """The Smart Music Downloader integration."""
 import os
 import logging
-import random # Added for shuffle functionality
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN, SERVICE_PLAY_SONG, DEFAULT_MUSIC_DIR, SERVICE_PLAY_ALL_SONGS
+from .const import DOMAIN, SERVICE_PLAY_SONG, DEFAULT_MUSIC_DIR
 from .downloader import async_search_and_download, async_get_music_list
 
 _LOGGER = logging.getLogger(__name__)
@@ -19,13 +18,6 @@ SERVICE_PLAY_SONG_SCHEMA = vol.Schema({
 
 SERVICE_LIST_SONGS_SCHEMA = vol.Schema({
     vol.Optional("music_dir", default=DEFAULT_MUSIC_DIR): cv.string,
-})
-
-SERVICE_PLAY_ALL_SONGS_SCHEMA = vol.Schema({
-    vol.Required("entity_id"): cv.entity_id,
-    vol.Optional("music_dir", default=DEFAULT_MUSIC_DIR): cv.string,
-    vol.Optional("shuffle", default=False): cv.boolean,
-    vol.Optional("repeat", default=False): cv.boolean,
 })
 
 async def async_setup(hass: HomeAssistant, config: dict):
@@ -81,54 +73,6 @@ async def async_setup(hass: HomeAssistant, config: dict):
         handle_list_songs, 
         schema=SERVICE_LIST_SONGS_SCHEMA,
         supports_response=vol.Maybe(vol.Coerce(str)) # To support returning data
-    )
-
-    async def handle_play_all_songs(call: ServiceCall):
-        """Handle the play_all_songs service call."""
-        entity_id = call.data.get("entity_id")
-        music_dir = call.data.get("music_dir", DEFAULT_MUSIC_DIR)
-        shuffle = call.data.get("shuffle", False)
-        repeat = call.data.get("repeat", False)
-
-        _LOGGER.info("Smart Music Downloader: Request to play all songs in %s on %s (shuffle=%s, repeat=%s)", music_dir, entity_id, shuffle, repeat)
-
-        songs = await async_get_music_list(hass, music_dir)
-
-        if not songs:
-            _LOGGER.warning("Smart Music Downloader: No songs found in %s to play.", music_dir)
-            return
-
-        while True: # Outer loop for repeat functionality
-            if shuffle:
-                random.shuffle(songs)
-
-            for song_filename in songs:
-                mp3_path = os.path.join(music_dir, song_filename)
-                rel_path = os.path.relpath(mp3_path, music_dir)
-                ha_path = rel_path.replace("\\", "/")
-                media_content_id = f"media-source://media_source/local/{ha_path}"
-
-                _LOGGER.info("Smart Music Downloader: Triggering playback for %s", media_content_id)
-
-                await hass.services.async_call(
-                    "media_player",
-                    "play_media",
-                    {
-                        "entity_id": entity_id,
-                        "media_content_id": media_content_id,
-                        "media_content_type": "audio/mpeg",
-                    },
-                    blocking=True,
-                )
-            
-            if not repeat:
-                break # Exit if not repeating the playlist
-
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_PLAY_ALL_SONGS,
-        handle_play_all_songs,
-        schema=SERVICE_PLAY_ALL_SONGS_SCHEMA,
     )
 
     return True
