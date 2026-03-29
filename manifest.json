@@ -1,0 +1,11 @@
+{
+  "domain": "smart_music_downloader",
+  "name": "Smart Music Downloader",
+  "codeowners": [],
+  "config_flow": false,
+  "documentation": "https://github.com/google/gemini-cli",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/google/gemini-cli/issues",
+  "requirements": ["yt-dlp"],
+  "version": "1.0.0"
+}

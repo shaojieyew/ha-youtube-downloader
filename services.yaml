@@ -1,0 +1,27 @@
+play_song:
+  name: Play Song
+  description: Searches for a song on YouTube, downloads it if missing, and plays it on a media player.
+  fields:
+    entity_id:
+      name: Media Player
+      description: The entity ID of the media player to use for playback.
+      required: true
+      example: "media_player.living_room_speaker"
+      selector:
+        entity:
+          domain: media_player
+    query:
+      name: Song Query
+      description: The name of the song and artist to search for.
+      required: true
+      example: "Never Gonna Give You Up"
+      selector:
+        text:
+    music_dir:
+      name: Music Directory
+      description: The local directory where music is stored (should be mounted to /media).
+      required: false
+      default: "/media"
+      example: "/media"
+      selector:
+        text:
